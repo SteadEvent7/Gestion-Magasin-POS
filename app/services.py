@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import json
 import re
+import time
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlencode, urlsplit, urlunsplit, parse_qsl
 from urllib.request import urlopen
 from urllib.error import URLError
 
@@ -175,7 +177,12 @@ class StoreService:
         if not APP_UPDATE_URL:
             return {"enabled": False, "available": False}
         try:
-            with urlopen(APP_UPDATE_URL, timeout=3) as response:
+            parsed = urlsplit(APP_UPDATE_URL)
+            query = dict(parse_qsl(parsed.query, keep_blank_values=True))
+            query["t"] = str(int(time.time()))
+            bust_url = urlunsplit((parsed.scheme, parsed.netloc, parsed.path, urlencode(query), parsed.fragment))
+
+            with urlopen(bust_url, timeout=8) as response:
                 payload = json.loads(response.read().decode("utf-8"))
             latest = str(payload.get("version", "")).strip()
             if not latest:

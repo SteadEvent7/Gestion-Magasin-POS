@@ -2605,6 +2605,12 @@ class MainView(ttk.Frame):
         ttk.Button(btns, text="Restauration complete", command=self.restore_data, style="Warning.TButton").pack(side="left", padx=4)
 
         ttk.Separator(tab).pack(fill="x", pady=10)
+        ttk.Label(tab, text="Mises a jour", font=("Segoe UI", 11, "bold")).pack(anchor="w", pady=4)
+        updates_row = ttk.Frame(tab)
+        updates_row.pack(anchor="w", pady=6)
+        ttk.Button(updates_row, text="Verifier les mises a jour", command=self.check_updates_now).pack(side="left", padx=4)
+
+        ttk.Separator(tab).pack(fill="x", pady=10)
         ttk.Label(tab, text="Securite compte", font=("Segoe UI", 11, "bold")).pack(anchor="w", pady=4)
         sec = ttk.Frame(tab)
         sec.pack(fill="x", pady=4)
@@ -2687,6 +2693,31 @@ class MainView(ttk.Frame):
         with file_path.open("w", encoding="utf-8") as f:
             json.dump(payload, f, default=str, ensure_ascii=False, indent=2)
         messagebox.showinfo("Sauvegarde", f"Sauvegarde creee: {file_path}")
+
+    def check_updates_now(self):
+        if not self._require_permission("settings:manage"):
+            return
+        info = self.service.check_remote_update()
+        if not info.get("enabled"):
+            messagebox.showinfo("Mise a jour", "La verification distante est desactivee.")
+            return
+
+        if not info.get("available"):
+            current = f"{APP_VERSION} (patch {APP_PATCH})"
+            messagebox.showinfo("Mise a jour", f"Aucune mise a jour disponible.\nVersion actuelle: {current}")
+            return
+
+        latest = info.get("latest", "?")
+        latest_patch = int(info.get("latest_patch", 0) or 0)
+        notes = info.get("notes", "")
+        current_label = f"{APP_VERSION} (patch {APP_PATCH})"
+        latest_label = f"{latest} (patch {latest_patch})" if latest_patch > 0 else str(latest)
+        do_update = messagebox.askyesno(
+            "Mise a jour disponible",
+            f"Version actuelle: {current_label}\nNouvelle version: {latest_label}\n\n{notes}\n\nMettre a jour maintenant ?",
+        )
+        if do_update:
+            self.perform_remote_update(info)
 
     def restore_data(self):
         if not self._require_permission("settings:manage"):

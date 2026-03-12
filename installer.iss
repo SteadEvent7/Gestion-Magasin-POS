@@ -141,7 +141,7 @@ begin
 	AddLine(Lines, 'APP_TITLE=' + ReadEnvExampleValue('APP_TITLE', 'Gestion Magasin POS'));
 	AddLine(Lines, 'APP_VERSION=' + ReadEnvExampleValue('APP_VERSION', '{#MyAppVersion}'));
 	AddLine(Lines, 'APP_PATCH=' + ReadEnvExampleValue('APP_PATCH', '0'));
-	AddLine(Lines, 'APP_UPDATE_URL=' + ReadEnvExampleValue('APP_UPDATE_URL', ''));
+	AddLine(Lines, 'APP_UPDATE_URL=' + ReadEnvExampleValue('APP_UPDATE_URL', 'https://raw.githubusercontent.com/SteadEvent7/Gestion-Magasin-POS/main/update.json'));
 
 	SaveStringsToFile(EnvPath, Lines, False);
 end;
