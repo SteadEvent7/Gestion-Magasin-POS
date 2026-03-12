@@ -1,6 +1,6 @@
 {
   "version": "1.0.2",
-  "patch": 14,
+  "patch": 15,
   "download_url": "https://github.com/SteadEvent7/Gestion-Magasin-POS/releases/download/v1.0.2/Setup_GestionMagasinPOS.exe",
-  "notes": "Patch 14: increment de patch pour nouveau cycle de test de mise a jour via installateur." 
+  "notes": "Patch 15: publication du flux startup informatif + test mise a jour via installateur." 
 }

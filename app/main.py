@@ -213,7 +213,13 @@ class StoreApp(tk.Tk):
                 ease_duration = 0.30 if step_elapsed < 0.25 else (0.22 if step_elapsed < 1.2 else 0.14)
                 current_pct = self._animate_splash_progress(splash, current_pct, target_pct, label, tip, ease_duration)
 
-            self._animate_splash_progress(splash, current_pct, 100.0, "Demarrage termine", STARTUP_TIPS[-1], 0.26)
+            final_tip = STARTUP_TIPS[-1]
+            if self.update_info.get("enabled") and self.update_info.get("available"):
+                latest = self.update_info.get("latest", "?")
+                latest_patch = int(self.update_info.get("latest_patch", 0) or 0)
+                latest_label = f"{latest} (patch {latest_patch})" if latest_patch > 0 else str(latest)
+                final_tip = f"Mise a jour disponible: {latest_label}. Utilisez Parametres > Verifier les mises a jour."
+            self._animate_splash_progress(splash, current_pct, 100.0, "Demarrage termine", final_tip, 0.26)
         finally:
             splash.attributes("-topmost", False)
             splash.destroy()
@@ -291,15 +297,13 @@ class StoreApp(tk.Tk):
         if self.update_info.get("enabled") and self.update_info.get("available"):
             latest = self.update_info.get("latest", "?")
             latest_patch = int(self.update_info.get("latest_patch", 0) or 0)
-            notes = self.update_info.get("notes", "")
             current_label = f"{APP_VERSION} (patch {APP_PATCH})"
             latest_label = f"{latest} (patch {latest_patch})" if latest_patch > 0 else str(latest)
-            do_update = messagebox.askyesno(
+            messagebox.showinfo(
                 "Mise a jour disponible",
-                f"Version actuelle: {current_label}\nNouvelle version: {latest_label}\n\n{notes}\n\nMettre a jour maintenant ?",
+                f"Version actuelle: {current_label}\nNouvelle version: {latest_label}\n\n"
+                "Utilisez Parametres > Verifier les mises a jour pour installer.",
             )
-            if do_update:
-                self.perform_remote_update(self.update_info)
 
     def perform_remote_update(self, update_info: dict):
         url = str(update_info.get("url", "")).strip()
@@ -332,6 +336,7 @@ class StoreApp(tk.Tk):
         popup.minsize(520, 170)
         popup.transient(self)
         popup.grab_set()
+        popup.protocol("WM_DELETE_WINDOW", lambda: None)
 
         frame = ttk.Frame(popup, padding=14, style="Surface.TFrame")
         frame.pack(fill="both", expand=True)
@@ -351,36 +356,97 @@ class StoreApp(tk.Tk):
         file_name = Path(parsed.path).name or f"GestionMagasinPOS_{version_label}.exe"
         out_path = updates_dir / file_name
 
-        with urlopen(url, timeout=25) as response:
-            total = int(response.headers.get("Content-Length", "0") or 0)
-            if total <= 0:
+        state = {
+            "done": False,
+            "error": None,
+            "total": 0,
+            "downloaded": 0,
+            "indeterminate": False,
+        }
+        state_lock = threading.Lock()
+
+        def worker():
+            try:
+                with urlopen(url, timeout=25) as response:
+                    total = int(response.headers.get("Content-Length", "0") or 0)
+                    with state_lock:
+                        state["total"] = total
+                    if total <= 0:
+                        with state_lock:
+                            state["indeterminate"] = True
+                        data = response.read()
+                        out_path.write_bytes(data)
+                        with state_lock:
+                            state["downloaded"] = len(data)
+                    else:
+                        chunk_size = 64 * 1024
+                        downloaded = 0
+                        with out_path.open("wb") as f:
+                            while True:
+                                chunk = response.read(chunk_size)
+                                if not chunk:
+                                    break
+                                f.write(chunk)
+                                downloaded += len(chunk)
+                                with state_lock:
+                                    state["downloaded"] = downloaded
+            except Exception as exc:
+                with state_lock:
+                    state["error"] = exc
+            finally:
+                with state_lock:
+                    state["done"] = True
+
+        download_thread = threading.Thread(target=worker, daemon=True)
+        download_thread.start()
+
+        indeterminate_started = False
+        while True:
+            with state_lock:
+                done = bool(state["done"])
+                total = int(state["total"])
+                downloaded = int(state["downloaded"])
+                indeterminate = bool(state["indeterminate"])
+
+            if indeterminate and not indeterminate_started:
                 progress.configure(mode="indeterminate")
                 progress.start(12)
-                status_var.set("Telechargement en cours...")
-                popup.update_idletasks()
-                data = response.read()
-                out_path.write_bytes(data)
-                progress.stop()
-                progress.configure(mode="determinate")
-                progress["value"] = 100
-                percent_var.set("100%")
+                indeterminate_started = True
+
+            if total > 0:
+                if indeterminate_started:
+                    progress.stop()
+                    progress.configure(mode="determinate")
+                    indeterminate_started = False
+                pct = min(100, int((downloaded * 100) / max(1, total)))
+                progress["value"] = pct
+                percent_var.set(f"{pct}%")
+                status_var.set(f"Telechargement... {downloaded // 1024} / {max(1, total // 1024)} Ko")
             else:
-                chunk_size = 64 * 1024
-                downloaded = 0
-                with out_path.open("wb") as f:
-                    while True:
-                        chunk = response.read(chunk_size)
-                        if not chunk:
-                            break
-                        f.write(chunk)
-                        downloaded += len(chunk)
-                        pct = int((downloaded * 100) / total)
-                        progress["value"] = pct
-                        percent_var.set(f"{pct}%")
-                        status_var.set(f"Telechargement... {downloaded // 1024} / {max(1, total // 1024)} Ko")
-                        popup.update_idletasks()
+                status_var.set("Telechargement en cours...")
+
+            popup.update()
+            if done:
+                break
+            time.sleep(0.05)
+
+        if indeterminate_started:
+            progress.stop()
+            progress.configure(mode="determinate")
+
+        with state_lock:
+            error = state["error"]
+
+        if error is None:
+            progress["value"] = 100
+            percent_var.set("100%")
+            status_var.set("Telechargement termine.")
+            popup.update()
+            time.sleep(0.15)
 
         popup.destroy()
+        if error is not None:
+            raise error
         return out_path
 
     def _launch_external_updater(self, package_path: Path):
