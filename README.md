@@ -96,6 +96,10 @@ En mode SQLite, cette etape est optionnelle (la creation est automatique au prem
 .\.venv\Scripts\python.exe run.py
 ```
 
+Avec l'installateur Windows, l'utilisateur peut choisir directement le moteur de base de donnees:
+- `SQLite` (recommande, operationnel immediatement)
+- `MySQL` (parametrage serveur, tentative d'installation auto via winget disponible)
+
 ## Build executable Windows (.exe)
 
 ```powershell

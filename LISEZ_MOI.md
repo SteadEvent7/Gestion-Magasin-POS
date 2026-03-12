@@ -26,12 +26,18 @@ Mode recommande: SQLite (aucun MySQL a installer).
 ### Etapes
 
 1. Lancer `Setup_GestionMagasinPOS.exe`.
-2. Terminer l'installation.
-3. Demarrer l'application.
-4. Se connecter avec:
+2. Dans l'installateur, choisir le moteur de base de donnees:
+   - `SQLite` (recommande, pret a l'emploi), ou
+   - `MySQL` (mode serveur/multi-postes).
+3. Si `MySQL` est choisi:
+   - renseigner les parametres de connexion,
+   - optionnellement cocher l'installation automatique MySQL via winget (internet requis).
+4. Terminer l'installation.
+5. Demarrer l'application.
+6. Se connecter avec:
    - Utilisateur: `admin`
    - Mot de passe: `admin123`
-5. Changer le mot de passe administrateur immediatement.
+7. Changer le mot de passe administrateur immediatement.
 
 ### Configuration par defaut (.env)
 
