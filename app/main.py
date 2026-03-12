@@ -2826,7 +2826,7 @@ class MainView(ttk.Frame):
             f"Version actuelle: {current_label}\nNouvelle version: {latest_label}\n\n{notes}\n\nMettre a jour maintenant ?",
         )
         if do_update:
-            self.perform_remote_update(info)
+            self.app.perform_remote_update(info)
 
     def restore_data(self):
         if not self._require_permission("settings:manage"):
