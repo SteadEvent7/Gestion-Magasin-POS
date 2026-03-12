@@ -1,6 +1,6 @@
 {
   "version": "1.0.2",
-  "patch": 10,
+  "patch": 11,
   "download_url": "https://github.com/SteadEvent7/Gestion-Magasin-POS/releases/download/v1.0.2/GestionMagasinPOS.exe",
-  "notes": "Patch 10: validation corrective du flux de mise a jour automatique (fermeture, remplacement, relance)." 
+  "notes": "Patch 11: increment de patch pour validation du flux de mise a jour en production." 
 }
