@@ -121,8 +121,12 @@ Pour publier une nouvelle version:
 1. Generer le nouvel exe.
 2. Creer la release GitHub (ex: `v1.0.3`).
 3. Uploader `GestionMagasinPOS.exe`.
-4. Mettre a jour `update.json` (`version`, `download_url`, `notes`).
+4. Mettre a jour `update.json` (`version`, `patch`, `download_url`, `notes`).
 5. Pousser `update.json` sur la branche principale.
+
+Regle de detection:
+- mise a jour proposee si `version` distante > version locale,
+- ou si `version` distante = version locale et `patch` distant > patch local.
 
 ## 6. Support exploitation
 

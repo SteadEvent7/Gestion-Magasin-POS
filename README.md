@@ -118,10 +118,15 @@ Sortie: `dist/GestionMagasinPOS.exe`
 ```json
 {
 	"version": "1.0.1",
+	"patch": 0,
 	"download_url": "https://github.com/SteadEvent7/Gestion-Magasin-POS/releases/download/v1.0.1/GestionMagasinPOS.exe",
 	"notes": "Correctifs mineurs et optimisation demarrage."
 }
 ```
+
+Remarque:
+- `patch` permet de publier des correctifs sans changer `version`.
+- L'application propose la mise a jour si `version` distante est superieure OU si `version` est egale et `patch` distant est superieur.
 
 3. Configurer l'application pour lire ce manifeste:
 
@@ -133,7 +138,7 @@ APP_UPDATE_URL=https://raw.githubusercontent.com/SteadEvent7/Gestion-Magasin-POS
 - Builder le nouvel exe (`dist/GestionMagasinPOS.exe`).
 - Creer une GitHub Release avec un tag (ex: `v1.0.2`).
 - Uploader `GestionMagasinPOS.exe` dans les assets de la release.
-- Mettre a jour `update.json` (`version`, `download_url`, `notes`) et pousser sur GitHub.
+- Mettre a jour `update.json` (`version`, `patch`, `download_url`, `notes`) et pousser sur GitHub.
 
 5. Au prochain lancement client:
 - L'app detecte la nouvelle version.
