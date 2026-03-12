@@ -394,82 +394,45 @@ param(
     [Parameter(Mandatory=$true)][int]$ProcId
 )
 
-Add-Type -AssemblyName System.Windows.Forms
-Add-Type -AssemblyName System.Drawing
-
-$form = New-Object System.Windows.Forms.Form
-$form.Text = 'Mise a jour en cours'
-$form.Size = New-Object System.Drawing.Size(540, 190)
-$form.StartPosition = 'CenterScreen'
-$form.TopMost = $true
-$form.FormBorderStyle = 'FixedDialog'
-$form.MaximizeBox = $false
-$form.MinimizeBox = $false
-
-$title = New-Object System.Windows.Forms.Label
-$title.AutoSize = $false
-$title.Location = New-Object System.Drawing.Point(20, 15)
-$title.Size = New-Object System.Drawing.Size(490, 24)
-$title.Font = New-Object System.Drawing.Font('Segoe UI', 11, [System.Drawing.FontStyle]::Bold)
-$title.Text = 'Application de la mise a jour'
-
-$status = New-Object System.Windows.Forms.Label
-$status.AutoSize = $false
-$status.Location = New-Object System.Drawing.Point(20, 48)
-$status.Size = New-Object System.Drawing.Size(490, 40)
-$status.Font = New-Object System.Drawing.Font('Segoe UI', 9)
-$status.Text = 'Preparation...'
-
-$bar = New-Object System.Windows.Forms.ProgressBar
-$bar.Location = New-Object System.Drawing.Point(20, 98)
-$bar.Size = New-Object System.Drawing.Size(490, 20)
-$bar.Style = 'Marquee'
-$bar.MarqueeAnimationSpeed = 25
-
-$form.Controls.Add($title)
-$form.Controls.Add($status)
-$form.Controls.Add($bar)
-
 try {
-    $form.Show()
-    [System.Windows.Forms.Application]::DoEvents()
-
-    $status.Text = 'Attente de la fermeture de l''application...'
+    $deadline = (Get-Date).AddSeconds(25)
     while (Get-Process -Id $ProcId -ErrorAction SilentlyContinue) {
-        Start-Sleep -Milliseconds 400
-        [System.Windows.Forms.Application]::DoEvents()
+        if ((Get-Date) -gt $deadline) {
+            Stop-Process -Id $ProcId -Force -ErrorAction SilentlyContinue
+            break
+        }
+        Start-Sleep -Milliseconds 350
     }
 
-    $status.Text = 'Copie des nouveaux fichiers...'
-    [System.Windows.Forms.Application]::DoEvents()
-
     $sourceInfo = Get-Item -LiteralPath $Source -ErrorAction Stop
-    Copy-Item -LiteralPath $Source -Destination $Target -Force -ErrorAction Stop
 
-    $status.Text = 'Verification de la mise a jour...'
-    [System.Windows.Forms.Application]::DoEvents()
+    $copied = $false
+    for ($i = 0; $i -lt 40; $i++) {
+        try {
+            Copy-Item -LiteralPath $Source -Destination $Target -Force -ErrorAction Stop
+            $copied = $true
+            break
+        }
+        catch {
+            Start-Sleep -Milliseconds 250
+        }
+    }
+    if (-not $copied) {
+        throw 'Impossible de remplacer le binaire apres plusieurs tentatives.'
+    }
 
     $targetInfo = Get-Item -LiteralPath $Target -ErrorAction Stop
     if ($targetInfo.Length -ne $sourceInfo.Length) {
         throw 'Verification de taille echouee apres copie.'
     }
 
-    $status.Text = 'Relance de l''application...'
-    [System.Windows.Forms.Application]::DoEvents()
     Start-Process -FilePath $Target | Out-Null
-
     Remove-Item -LiteralPath $Source -Force -ErrorAction SilentlyContinue
-    Start-Sleep -Milliseconds 500
-    $form.Close()
 }
 catch {
-    [System.Windows.Forms.MessageBox]::Show(
-        "Echec de la mise a jour automatique.`r`n$($_.Exception.Message)`r`n`r`nRelancez l'application manuellement.",
-        'Mise a jour',
-        [System.Windows.Forms.MessageBoxButtons]::OK,
-        [System.Windows.Forms.MessageBoxIcon]::Error
-    ) | Out-Null
-    $form.Close()
+    $msg = "Echec de la mise a jour automatique.`r`n$($_.Exception.Message)`r`n`r`nRelancez l'application manuellement."
+    Add-Type -AssemblyName System.Windows.Forms
+    [System.Windows.Forms.MessageBox]::Show($msg, 'Mise a jour', [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Error) | Out-Null
 }
 """.strip()
         ps_script_path.write_text(ps_script, encoding="utf-8")
@@ -479,6 +442,8 @@ catch {
             flags |= subprocess.CREATE_NEW_PROCESS_GROUP
         if hasattr(subprocess, "DETACHED_PROCESS"):
             flags |= subprocess.DETACHED_PROCESS
+        if hasattr(subprocess, "CREATE_NO_WINDOW"):
+            flags |= subprocess.CREATE_NO_WINDOW
 
         powershell_exe = "powershell"
         try:
@@ -488,6 +453,8 @@ catch {
                     "-NoProfile",
                     "-ExecutionPolicy",
                     "Bypass",
+                    "-WindowStyle",
+                    "Hidden",
                     "-File",
                     str(ps_script_path),
                     "-Target",
