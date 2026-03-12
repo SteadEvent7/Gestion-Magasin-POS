@@ -177,6 +177,8 @@ class StoreApp(tk.Tk):
 
         self._run_startup_sequence()
         self.show_login()
+        if self._shutdown_requested or not self.winfo_exists():
+            return
         if not self._shutdown_requested:
             self.deiconify()
             self.lift()

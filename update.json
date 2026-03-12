@@ -1,6 +1,6 @@
 {
   "version": "1.0.2",
-  "patch": 3,
+  "patch": 4,
   "download_url": "https://github.com/SteadEvent7/Gestion-Magasin-POS/releases/download/v1.0.2/GestionMagasinPOS.exe",
-  "notes": "Patch 3: publication de test pour verifier l'apparition du pop-up de mise a jour (1.0.2 patch 2 vers patch 3)."
+  "notes": "Patch 4: correctif anti-crash apres clic Oui sur la popup de mise a jour (wm deiconify)."
 }
