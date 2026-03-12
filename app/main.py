@@ -386,9 +386,126 @@ class StoreApp(tk.Tk):
         current_pid = os.getpid()
         updater_dir = Path(tempfile.gettempdir()) / "vente2_updates"
         updater_dir.mkdir(parents=True, exist_ok=True)
-        script_path = updater_dir / f"updater_{int(time.time())}.cmd"
+        ps_script_path = updater_dir / f"updater_{int(time.time())}.ps1"
+        ps_script = r"""
+param(
+    [Parameter(Mandatory=$true)][string]$Target,
+    [Parameter(Mandatory=$true)][string]$Source,
+    [Parameter(Mandatory=$true)][int]$ProcId
+)
 
-        script = f"""@echo off
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName System.Drawing
+
+$form = New-Object System.Windows.Forms.Form
+$form.Text = 'Mise a jour en cours'
+$form.Size = New-Object System.Drawing.Size(540, 190)
+$form.StartPosition = 'CenterScreen'
+$form.TopMost = $true
+$form.FormBorderStyle = 'FixedDialog'
+$form.MaximizeBox = $false
+$form.MinimizeBox = $false
+
+$title = New-Object System.Windows.Forms.Label
+$title.AutoSize = $false
+$title.Location = New-Object System.Drawing.Point(20, 15)
+$title.Size = New-Object System.Drawing.Size(490, 24)
+$title.Font = New-Object System.Drawing.Font('Segoe UI', 11, [System.Drawing.FontStyle]::Bold)
+$title.Text = 'Application de la mise a jour'
+
+$status = New-Object System.Windows.Forms.Label
+$status.AutoSize = $false
+$status.Location = New-Object System.Drawing.Point(20, 48)
+$status.Size = New-Object System.Drawing.Size(490, 40)
+$status.Font = New-Object System.Drawing.Font('Segoe UI', 9)
+$status.Text = 'Preparation...'
+
+$bar = New-Object System.Windows.Forms.ProgressBar
+$bar.Location = New-Object System.Drawing.Point(20, 98)
+$bar.Size = New-Object System.Drawing.Size(490, 20)
+$bar.Style = 'Marquee'
+$bar.MarqueeAnimationSpeed = 25
+
+$form.Controls.Add($title)
+$form.Controls.Add($status)
+$form.Controls.Add($bar)
+
+try {
+    $form.Show()
+    [System.Windows.Forms.Application]::DoEvents()
+
+    $status.Text = 'Attente de la fermeture de l''application...'
+    while (Get-Process -Id $ProcId -ErrorAction SilentlyContinue) {
+        Start-Sleep -Milliseconds 400
+        [System.Windows.Forms.Application]::DoEvents()
+    }
+
+    $status.Text = 'Copie des nouveaux fichiers...'
+    [System.Windows.Forms.Application]::DoEvents()
+
+    $sourceInfo = Get-Item -LiteralPath $Source -ErrorAction Stop
+    Copy-Item -LiteralPath $Source -Destination $Target -Force -ErrorAction Stop
+
+    $status.Text = 'Verification de la mise a jour...'
+    [System.Windows.Forms.Application]::DoEvents()
+
+    $targetInfo = Get-Item -LiteralPath $Target -ErrorAction Stop
+    if ($targetInfo.Length -ne $sourceInfo.Length) {
+        throw 'Verification de taille echouee apres copie.'
+    }
+
+    $status.Text = 'Relance de l''application...'
+    [System.Windows.Forms.Application]::DoEvents()
+    Start-Process -FilePath $Target | Out-Null
+
+    Remove-Item -LiteralPath $Source -Force -ErrorAction SilentlyContinue
+    Start-Sleep -Milliseconds 500
+    $form.Close()
+}
+catch {
+    [System.Windows.Forms.MessageBox]::Show(
+        "Echec de la mise a jour automatique.`r`n$($_.Exception.Message)`r`n`r`nRelancez l'application manuellement.",
+        'Mise a jour',
+        [System.Windows.Forms.MessageBoxButtons]::OK,
+        [System.Windows.Forms.MessageBoxIcon]::Error
+    ) | Out-Null
+    $form.Close()
+}
+""".strip()
+        ps_script_path.write_text(ps_script, encoding="utf-8")
+
+        flags = 0
+        if hasattr(subprocess, "CREATE_NEW_PROCESS_GROUP"):
+            flags |= subprocess.CREATE_NEW_PROCESS_GROUP
+        if hasattr(subprocess, "DETACHED_PROCESS"):
+            flags |= subprocess.DETACHED_PROCESS
+
+        powershell_exe = "powershell"
+        try:
+            subprocess.Popen(
+                [
+                    powershell_exe,
+                    "-NoProfile",
+                    "-ExecutionPolicy",
+                    "Bypass",
+                    "-File",
+                    str(ps_script_path),
+                    "-Target",
+                    str(current_exe),
+                    "-Source",
+                    str(package_path),
+                    "-ProcId",
+                    str(current_pid),
+                ],
+                creationflags=flags,
+            )
+            return
+        except Exception:
+            pass
+
+        # Fallback minimal if PowerShell is unavailable.
+        cmd_script_path = updater_dir / f"updater_{int(time.time())}.cmd"
+        cmd_script = f"""@echo off
 setlocal enableextensions
 set "TARGET={current_exe}"
 set "SOURCE={package_path}"
@@ -404,18 +521,10 @@ if not errorlevel 1 (
 copy /Y "%SOURCE%" "%TARGET%" >nul
 start "" "%TARGET%"
 del /Q "%SOURCE%" >nul 2>&1
-del /Q "%~f0" >nul 2>&1
 endlocal
 """
-        script_path.write_text(script, encoding="utf-8")
-
-        flags = 0
-        if hasattr(subprocess, "CREATE_NEW_PROCESS_GROUP"):
-            flags |= subprocess.CREATE_NEW_PROCESS_GROUP
-        if hasattr(subprocess, "DETACHED_PROCESS"):
-            flags |= subprocess.DETACHED_PROCESS
-
-        subprocess.Popen(["cmd", "/c", str(script_path)], creationflags=flags)
+        cmd_script_path.write_text(cmd_script, encoding="utf-8")
+        subprocess.Popen(["cmd", "/c", str(cmd_script_path)], creationflags=flags)
 
     def show_main(self, user: dict):
         self.current_user = user
