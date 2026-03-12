@@ -329,6 +329,7 @@ class StoreApp(tk.Tk):
         popup = tk.Toplevel(self)
         popup.title("Telechargement mise a jour")
         popup.geometry("520x170")
+        popup.minsize(520, 170)
         popup.transient(self)
         popup.grab_set()
 
@@ -341,6 +342,7 @@ class StoreApp(tk.Tk):
         progress.pack(fill="x")
         percent_var = tk.StringVar(value="0%")
         ttk.Label(frame, textvariable=percent_var).pack(anchor="e", pady=(6, 0))
+        popup.update()
 
         updates_dir = Path(tempfile.gettempdir()) / "vente2_updates"
         updates_dir.mkdir(parents=True, exist_ok=True)
@@ -387,17 +389,49 @@ class StoreApp(tk.Tk):
         updater_dir = Path(tempfile.gettempdir()) / "vente2_updates"
         updater_dir.mkdir(parents=True, exist_ok=True)
         ps_script_path = updater_dir / f"updater_{int(time.time())}.ps1"
+        log_path = updater_dir / "updater_last.log"
         ps_script = r"""
 param(
     [Parameter(Mandatory=$true)][string]$Target,
     [Parameter(Mandatory=$true)][string]$Source,
-    [Parameter(Mandatory=$true)][int]$ProcId
+    [Parameter(Mandatory=$true)][int]$ProcId,
+    [Parameter(Mandatory=$true)][string]$Log
 )
 
 try {
+    function Write-Log([string]$Message) {
+        Add-Content -LiteralPath $Log -Value ("$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')  " + $Message)
+    }
+
+    Write-Log "Updater start. Target=$Target Source=$Source ProcId=$ProcId"
+
+    $targetLower = $Target.ToLowerInvariant()
+    $pf = $env:ProgramFiles.ToLowerInvariant()
+    $pfx86 = $env:'ProgramFiles(x86)'.ToLowerInvariant()
+    $isProgramFilesTarget = $targetLower.StartsWith($pf) -or $targetLower.StartsWith($pfx86)
+
+    $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+    $principal = New-Object Security.Principal.WindowsPrincipal($identity)
+    $isAdmin = $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+
+    if ($isProgramFilesTarget -and -not $isAdmin) {
+        Write-Log "Need elevation for Program Files target. Relaunching updater as admin."
+        Start-Process -FilePath "powershell" -Verb RunAs -ArgumentList @(
+            "-NoProfile",
+            "-ExecutionPolicy", "Bypass",
+            "-File", $PSCommandPath,
+            "-Target", $Target,
+            "-Source", $Source,
+            "-ProcId", $ProcId,
+            "-Log", $Log
+        ) | Out-Null
+        exit 0
+    }
+
     $deadline = (Get-Date).AddSeconds(25)
     while (Get-Process -Id $ProcId -ErrorAction SilentlyContinue) {
         if ((Get-Date) -gt $deadline) {
+            Write-Log "Deadline reached. Forcing process stop for PID $ProcId."
             Stop-Process -Id $ProcId -Force -ErrorAction SilentlyContinue
             break
         }
@@ -405,6 +439,7 @@ try {
     }
 
     $sourceInfo = Get-Item -LiteralPath $Source -ErrorAction Stop
+    Write-Log ("Downloaded package size=" + $sourceInfo.Length)
 
     $copied = $false
     for ($i = 0; $i -lt 40; $i++) {
@@ -426,10 +461,16 @@ try {
         throw 'Verification de taille echouee apres copie.'
     }
 
+    Write-Log "Copy and verification succeeded. Relaunching app."
+
     Start-Process -FilePath $Target | Out-Null
     Remove-Item -LiteralPath $Source -Force -ErrorAction SilentlyContinue
+    Write-Log "Updater finished successfully."
 }
 catch {
+    try {
+        Add-Content -LiteralPath $Log -Value ("$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')  ERROR: " + $_.Exception.Message)
+    } catch {}
     $msg = "Echec de la mise a jour automatique.`r`n$($_.Exception.Message)`r`n`r`nRelancez l'application manuellement."
     Add-Type -AssemblyName System.Windows.Forms
     [System.Windows.Forms.MessageBox]::Show($msg, 'Mise a jour', [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Error) | Out-Null
@@ -440,10 +481,6 @@ catch {
         flags = 0
         if hasattr(subprocess, "CREATE_NEW_PROCESS_GROUP"):
             flags |= subprocess.CREATE_NEW_PROCESS_GROUP
-        if hasattr(subprocess, "DETACHED_PROCESS"):
-            flags |= subprocess.DETACHED_PROCESS
-        if hasattr(subprocess, "CREATE_NO_WINDOW"):
-            flags |= subprocess.CREATE_NO_WINDOW
 
         powershell_exe = "powershell"
         try:
@@ -453,8 +490,6 @@ catch {
                     "-NoProfile",
                     "-ExecutionPolicy",
                     "Bypass",
-                    "-WindowStyle",
-                    "Hidden",
                     "-File",
                     str(ps_script_path),
                     "-Target",
@@ -463,6 +498,8 @@ catch {
                     str(package_path),
                     "-ProcId",
                     str(current_pid),
+                    "-Log",
+                    str(log_path),
                 ],
                 creationflags=flags,
             )
