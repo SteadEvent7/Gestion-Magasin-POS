@@ -39,8 +39,8 @@ DB_CONFIG = {
 
 APP_TITLE = os.getenv("APP_TITLE", "Gestion Magasin POS")
 APP_VERSION = os.getenv("APP_VERSION", "1.0.2")
-APP_PATCH = _int_env("APP_PATCH", 2)
-APP_UPDATE_URL = os.getenv("APP_UPDATE_URL", "")
+APP_PATCH = _int_env("APP_PATCH", 3)
+APP_UPDATE_URL = os.getenv("APP_UPDATE_URL", "https://raw.githubusercontent.com/SteadEvent7/Gestion-Magasin-POS/main/update.json")
 BACKUPS_DIR = APP_DATA_DIR / "backups"
 EXPORTS_DIR = APP_DATA_DIR / "exports"
 LOGS_DIR = APP_DATA_DIR / "logs"
