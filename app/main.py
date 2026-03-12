@@ -169,6 +169,7 @@ class StoreApp(tk.Tk):
         self.service = StoreService()
         self.startup_health = {"ok": True, "issues": [], "counts": {}}
         self.update_info = {"enabled": False, "available": False}
+        self._shutdown_requested = False
         self.current_user = None
 
         self._container = ttk.Frame(self)
@@ -176,8 +177,9 @@ class StoreApp(tk.Tk):
 
         self._run_startup_sequence()
         self.show_login()
-        self.deiconify()
-        self.lift()
+        if not self._shutdown_requested:
+            self.deiconify()
+            self.lift()
 
     def _run_startup_sequence(self):
         splash = StartupSplash(self, APP_TITLE)
@@ -316,6 +318,7 @@ class StoreApp(tk.Tk):
             package_path = self._download_update_to_temp(url, latest or "latest")
             self._launch_external_updater(package_path)
             messagebox.showinfo("Mise a jour", "Le programme de mise a jour va s'executer. L'application va se fermer.")
+            self._shutdown_requested = True
             self.destroy()
         except Exception as exc:
             messagebox.showerror("Mise a jour", f"Echec de la mise a jour automatique:\n{exc}")
