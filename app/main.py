@@ -388,8 +388,76 @@ class StoreApp(tk.Tk):
         current_pid = os.getpid()
         updater_dir = Path(tempfile.gettempdir()) / "vente2_updates"
         updater_dir.mkdir(parents=True, exist_ok=True)
-        ps_script_path = updater_dir / f"updater_{int(time.time())}.ps1"
-        log_path = updater_dir / "updater_last.log"
+        is_setup_package = "setup" in package_path.name.lower()
+        log_path = updater_dir / ("updater_setup.log" if is_setup_package else "updater_last.log")
+        ps_script_path = updater_dir / f"updater_{'setup' if is_setup_package else 'replace'}_{int(time.time())}.ps1"
+
+        if is_setup_package:
+            ps_script = r"""
+param(
+    [Parameter(Mandatory=$true)][string]$Installer,
+    [Parameter(Mandatory=$true)][int]$ProcId,
+    [Parameter(Mandatory=$true)][string]$Log
+)
+
+function Write-Log([string]$Message) {
+    Add-Content -LiteralPath $Log -Value ("$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')  " + $Message)
+}
+
+try {
+    Write-Log "Setup updater start. Installer=$Installer ProcId=$ProcId"
+    $deadline = (Get-Date).AddSeconds(25)
+    while (Get-Process -Id $ProcId -ErrorAction SilentlyContinue) {
+        if ((Get-Date) -gt $deadline) {
+            Write-Log "Deadline reached. Forcing process stop for PID $ProcId."
+            Stop-Process -Id $ProcId -Force -ErrorAction SilentlyContinue
+            break
+        }
+        Start-Sleep -Milliseconds 300
+    }
+
+    Write-Log "Launching installer with elevation."
+    Start-Process -FilePath $Installer -Verb RunAs | Out-Null
+    Write-Log "Installer launched successfully."
+}
+catch {
+    try {
+        Add-Content -LiteralPath $Log -Value ("$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')  ERROR: " + $_.Exception.Message)
+    } catch {}
+    Add-Type -AssemblyName System.Windows.Forms
+    [System.Windows.Forms.MessageBox]::Show(
+        "Echec du lancement de l'installateur de mise a jour.`r`n$($_.Exception.Message)",
+        'Mise a jour',
+        [System.Windows.Forms.MessageBoxButtons]::OK,
+        [System.Windows.Forms.MessageBoxIcon]::Error
+    ) | Out-Null
+}
+""".strip()
+            ps_script_path.write_text(ps_script, encoding="utf-8")
+
+            flags = 0
+            if hasattr(subprocess, "CREATE_NEW_PROCESS_GROUP"):
+                flags |= subprocess.CREATE_NEW_PROCESS_GROUP
+
+            subprocess.Popen(
+                [
+                    "powershell",
+                    "-NoProfile",
+                    "-ExecutionPolicy",
+                    "Bypass",
+                    "-File",
+                    str(ps_script_path),
+                    "-Installer",
+                    str(package_path),
+                    "-ProcId",
+                    str(current_pid),
+                    "-Log",
+                    str(log_path),
+                ],
+                creationflags=flags,
+            )
+            return
+
         ps_script = r"""
 param(
     [Parameter(Mandatory=$true)][string]$Target,
