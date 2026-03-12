@@ -16,7 +16,8 @@ def _default_app_data_dir() -> Path:
 
 APP_DATA_DIR = Path(os.getenv("APP_DATA_DIR", str(_default_app_data_dir())))
 DB_ENGINE = os.getenv("DB_ENGINE", "sqlite").strip().lower() or "sqlite"
-SQLITE_DB_PATH = Path(os.getenv("SQLITE_DB_PATH", str(APP_DATA_DIR / "gestion_magasin.db")))
+_sqlite_db_env = (os.getenv("SQLITE_DB_PATH") or "").strip()
+SQLITE_DB_PATH = Path(_sqlite_db_env) if _sqlite_db_env else (APP_DATA_DIR / "gestion_magasin.db")
 
 DB_CONFIG = {
     "host": os.getenv("DB_HOST", "127.0.0.1"),
