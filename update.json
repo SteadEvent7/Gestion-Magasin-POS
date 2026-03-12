@@ -1,6 +1,6 @@
 {
   "version": "1.0.2",
-  "patch": 6,
+  "patch": 7,
   "download_url": "https://github.com/SteadEvent7/Gestion-Magasin-POS/releases/download/v1.0.2/GestionMagasinPOS.exe",
-  "notes": "Patch 6: fenetre updater visible apres fermeture, verification de copie, puis relance automatique de l'application." 
+  "notes": "Patch 7: validation du flux de mise a jour (detection patch + application distante)." 
 }
